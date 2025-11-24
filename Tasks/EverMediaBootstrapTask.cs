@@ -301,9 +301,8 @@ public class EverMediaBootstrapTask : IScheduledTask
             // 等待所有任务完成
             await Task.WhenAll(tasks);
 
-            // var totalProcessed = restoredCount + probedCount + skippedCount;
             var totalProcessed = restoredCount + probedCount + backedUpCount + skippedCount;
-            _logger.Info($"[EverMedia] BootstrapTask: Task execution completed. Total .strm files processed: {totalProcessed}. Breakdown -> Restored from .medinfo: {restoredCount}, Probed for new meta {probedCount}, Backup for media info existed: {backedUpCount},  Skipped: {skippedCount}.");
+            _logger.Info($"[EverMedia] BootstrapTask: Task execution completed. Total .strm files processed: {totalProcessed}. Restored from .medinfo: {restoredCount}, Probed for new meta {probedCount}, Backup for media info existed: {backedUpCount},  Skipped: {skippedCount}.");
 
             // 在任务成功完成后，记录一个稍晚于当前时间的时间戳作为下一次运行的基准·
             // 硬编码增加 1 秒偏移量，确保下一次查询起点晚于本次任务结束时间
