@@ -18,7 +18,7 @@ public class EverMediaConfig : EditableOptionsBase
     public bool EnableBootstrapTask { get; set; } = false; // 默认关闭
 
     [DisplayName("备份模式")]
-    [Description("选择 .medinfo 文件的存储方式。SideBySide: 和.strm 文件放在同一目录下。Centralized: 存放在指定的目录中。")]
+    [Description("选择 .medinfo 文件的存储方式。SideBySide: 和.strm 文件放在同一目录下；Centralized: 存放在指定的目录中。")]
     public BackupMode BackupMode { get; set; } = BackupMode.SideBySide;
 
     [DisplayName("存储路径")]
@@ -31,18 +31,18 @@ public class EverMediaConfig : EditableOptionsBase
     // public bool EnableOrphanCleanup { get; set; } = false;
 
     [DisplayName("上次任务运行时间（UTC）")]
-    [Description("MediaInfo 引导任务上次成功完成的 UTC 时间，用于增量扫描。请谨慎手动修改此值。")]
+    [Description("MediaInfo任务上次成功完成的 UTC 时间，用于增量扫描。如无必要，不要设置。")]
     public DateTime? LastBootstrapTaskRun { get; set; } = null; // 初始值为 null
     
     // --- 二级设置分组 1: 熔断策略 ---
     [DisplayName("高级设置：熔断策略")]
-    [Description("配置针对 FFProbe 失败的重试与熔断机制，防止服务器因反复尝试损坏文件而过载。")]
+    [Description("配置.strm访问失败的重试次数与重置时间")]
     public ProbeFailureConfig FailureConfig { get; set; } = new ProbeFailureConfig();
 
 
     // --- 二级设置分组 2: 并发控制 ---
-    [DisplayName("高级设置：计划任务并发")]
-    [Description("配置计划任务（Bootstrap Task）的执行速率和并发度，避免批量处理时阻塞服务器。")]
+    [DisplayName("高级设置：计划任务")]
+    [Description("配置计划任务（Bootstrap Task）的线程数量和访问间隔")]
     public ConcurrencyConfig TaskConfig { get; set; } = new ConcurrencyConfig();
     
 }
@@ -52,12 +52,12 @@ public class ProbeFailureConfig : EditableOptionsBase
     public override string EditorTitle => "Probe Failure Settings";
     
     [DisplayName("FFProbe 最大重试次数")]
-    [Description("当探测失败时，允许的最大自动重试次数。达到此限制后，插件将停止对该文件的自动探测，直到“失败重置时间”过去。")]
+    [Description("当失败次数达到此限制后，插件将停止对该文件的刷新，直到“重置时间”过去。")]
     [MinValue(1), MaxValue(10)]
     public int MaxProbeRetries { get; set; } = 3;
 
     [DisplayName("FFProbe 失败重置时间 (分钟)")]
-    [Description("当达到最大重试次数后，需要等待多久才能允许再次尝试。防止死循环，允许在一段时间后，自动重置。")]
+    [Description("达到最大重试次数后，需要重制时间过后，才能再次调用插件，防止死循环或过载。")]
     [MinValue(1)]
     public int ProbeFailureResetMinutes { get; set; } = 30;
 }
@@ -67,11 +67,12 @@ public class ConcurrencyConfig : EditableOptionsBase
     public override string EditorTitle => "Concurrency Settings";
     
     [DisplayName("计划任务 - 线程数量")]
-    [Description("同时发起操作的最多任务数。例如：2，同时触发2个.strm执行，适用于批量任务。")]
+    [Description("同时发起刷新的最多任务数。例如：2=同时触发2个.strm执行，仅适用于批量任务。")]
+    [MinValue(1)]
     public int MaxConcurrency { get; set; } = 2;
 
     [DisplayName("计划任务 - .strm 访问间隔（秒）")]
-    [Description(" .strm 调用 FFProbe 的最小间隔（秒），设为 0 表示禁用。例如：A.strm触发访问刷新media info后，B.strm需要2秒后才能继续访问，适用于批量任务。")]
+    [Description(" 访问.strm的最小间隔（秒），设为 0 表示禁用。例如：A.strm开始刷新media info后，B.strm需要2秒后才刷新，仅适用于批量任务。")]
     [MinValue(0), MaxValue(60)]
     public int BootstrapTaskRateLimitSeconds { get; set; } = 2;
 }
