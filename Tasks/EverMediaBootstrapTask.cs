@@ -130,6 +130,7 @@ public class EverMediaBootstrapTask : IScheduledTask
             var processedCount = 0;
             var restoredCount = 0;
             var probedCount = 0;
+            var backedUpCount = 0;
             var skippedCount = 0;
 
             // --- Rate Limiting: Config-based delay using TimeSpan ---
@@ -265,10 +266,18 @@ public class EverMediaBootstrapTask : IScheduledTask
                             }
                             else
                             {
-                                // 有 MediaStreams 但没有 .medinfo 文件：可能是一个新添加的、有信息但未备份的项目
-                                // 计划任务不直接处理这种情况，EventListener 会处理
-                                _logger.Debug($"[EverMedia] BootstrapTask: MediaInfo exists for {item.Path} but no .medinfo file. Event listener may handle backup.");
-                                skippedCount++;
+                                // 有 MediaInfo 但没有 .medinfo → 立即备份
+                                _logger.Info($"[EverMedia] BootstrapTask: MediaInfo exists for {item.Path} but no .medinfo file. Backing up now.");
+                                var backupResult = await _everMediaService.BackupAsync(item);
+                                if (backupResult)
+                                {
+                                    backedUpCount++;
+                                    _logger.Info($"[EverMedia] BootstrapTask: Successfully backed up MediaInfo for {item.Path}.");
+                                }
+                                else
+                                {
+                                    _logger.Warn($"[EverMedia] BootstrapTask: Failed to back up MediaInfo for {item.Path}.");
+                                }
                             }
                         }
                     }
@@ -292,8 +301,9 @@ public class EverMediaBootstrapTask : IScheduledTask
             // 等待所有任务完成
             await Task.WhenAll(tasks);
 
-            var totalProcessed = restoredCount + probedCount + skippedCount;
-            _logger.Info($"[EverMedia] BootstrapTask: Task execution completed. Total .strm files processed: {totalProcessed}. Breakdown -> Restored from .medinfo: {restoredCount}, Probed for new meta {probedCount}, Skipped (already has metadata): {skippedCount}.");
+            // var totalProcessed = restoredCount + probedCount + skippedCount;
+            var totalProcessed = restoredCount + probedCount + backedUpCount + skippedCount;
+            _logger.Info($"[EverMedia] BootstrapTask: Task execution completed. Total .strm files processed: {totalProcessed}. Breakdown -> Restored from .medinfo: {restoredCount}, Probed for new meta {probedCount}, Backup for media info existed: {backedUpCount},  Skipped: {skippedCount}.");
 
             // 在任务成功完成后，记录一个稍晚于当前时间的时间戳作为下一次运行的基准·
             // 硬编码增加 1 秒偏移量，确保下一次查询起点晚于本次任务结束时间
