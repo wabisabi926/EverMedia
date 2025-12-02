@@ -66,13 +66,13 @@ public class ConcurrencyConfig : EditableOptionsBase
 {
     public override string EditorTitle => "Concurrency Settings";
     
-    [DisplayName("计划任务 - 线程数量")]
-    [Description("同时发起刷新的最多任务数。例如：2=同时触发2个.strm执行，仅适用于批量任务。")]
+    [DisplayName("全局并发线程数")]
+    [Description("同时处理 .strm 文件的最大线程数量。此设置同时应用于「计划任务」和「实时监控」。(注意：修改此值后，需重启 Emby Server 才能更新实时监控的线程池数量)。")]
     [MinValue(1)]
     public int MaxConcurrency { get; set; } = 2;
 
-    [DisplayName("全局访问间隔限制（秒）")]
-    [Description(" 访问 .strm 的最小间隔（秒）。此设置同时应用于「计划任务」和「实时监控」，用于防止触发远程端风控。")]
+    [DisplayName("全局访问间隔（秒）")]
+    [Description("每个线程处理两个文件之间的最小冷却时间（秒）。此设置同时应用于「计划任务」和「实时监控」，用于防止触发远程端风控。例如：并发数设为 2，间隔设为 2秒，则总体请求频率约为 1次/秒。此设置对所有模式生效。")]
     [MinValue(0), MaxValue(60)]
     public int BootstrapTaskRateLimitSeconds { get; set; } = 2;
 }
