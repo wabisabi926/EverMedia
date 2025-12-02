@@ -71,8 +71,8 @@ public class ConcurrencyConfig : EditableOptionsBase
     [MinValue(1)]
     public int MaxConcurrency { get; set; } = 2;
 
-    [DisplayName("计划任务 - .strm 访问间隔（秒）")]
-    [Description(" 访问.strm的最小间隔（秒），设为 0 表示禁用。例如：A.strm开始刷新media info后，B.strm需要2秒后才刷新，仅适用于批量任务。")]
+    [DisplayName("全局访问间隔限制（秒）")]
+    [Description(" 访问 .strm 的最小间隔（秒）。此设置同时应用于「计划任务」和「实时监控」，用于防止触发远程端风控。")]
     [MinValue(0), MaxValue(60)]
     public int BootstrapTaskRateLimitSeconds { get; set; } = 2;
 }
