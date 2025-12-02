@@ -259,7 +259,7 @@ public class EverMediaService
     }
 
     // --- GetMedInfoPath：支持多路径库 + 手动相对路径 ---
-    // --- GetMedInfoPath：支持多路径库 + 手动相对路径 ---
+// --- GetMedInfoPath：支持多路径库 + 手动相对路径 ---
     public string GetMedInfoPath(BaseItem item)
     {
         if (string.IsNullOrEmpty(item.Path))
@@ -277,25 +277,44 @@ public class EverMediaService
             var libraryOptions = _libraryManager.GetLibraryOptions(item);
             if (libraryOptions?.PathInfos != null)
             {
+                // [修改重点 1]：优先匹配最长的路径，并增加严格的边界检查
                 var matchingPathInfo = libraryOptions.PathInfos
-                    .FirstOrDefault(pi => !string.IsNullOrEmpty(pi.Path) &&
-                                          item.Path.StartsWith(pi.Path, StringComparison.OrdinalIgnoreCase));
+                    .OrderByDescending(p => p.Path.Length) // 优先匹配长路径，避免短路径误伤
+                    .FirstOrDefault(pi => 
+                    {
+                        if (string.IsNullOrEmpty(pi.Path)) return false;
+                        
+                        // 1. 基础前缀匹配
+                        if (!item.Path.StartsWith(pi.Path, StringComparison.OrdinalIgnoreCase)) return false;
+
+                        // [修改重点 2]：边界检查 - 确保匹配的是完整的文件夹名
+                        // 如果 pi.Path 是 "/Movie"，不能匹配 "/Movie.finished"
+                        // 规则：匹配长度必须等于路径长度，或者下一个字符必须是路径分隔符
+                        if (item.Path.Length > pi.Path.Length)
+                        {
+                            char nextChar = item.Path[pi.Path.Length];
+                            // 只有当下一个字符是 '/' 或 '\' 时，才算真正的父目录
+                            if (nextChar != Path.DirectorySeparatorChar && nextChar != Path.AltDirectorySeparatorChar)
+                            {
+                                return false; 
+                            }
+                        }
+                        
+                        return true; 
+                    });
 
                 if (matchingPathInfo != null)
                 {
                     string baseLibraryPath = matchingPathInfo.Path;
                     string relativeDir = item.ContainingFolderPath;
 
-                    if (relativeDir.Length > baseLibraryPath.Length)
+                    // 安全地截取相对路径
+                    if (relativeDir.StartsWith(baseLibraryPath, StringComparison.OrdinalIgnoreCase))
                     {
                         relativeDir = relativeDir.Substring(baseLibraryPath.Length)
                                             .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                     }
-                    else
-                    {
-                        relativeDir = string.Empty;
-                    }
-
+                    
                     string targetDir = string.IsNullOrEmpty(relativeDir)
                         ? config.CentralizedRootPath
                         : Path.Combine(config.CentralizedRootPath, relativeDir);
