@@ -1,4 +1,3 @@
-// Events/EverMediaEventListener.cs
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
@@ -11,14 +10,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Threading.Channels; // 必须引入
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using EverMedia.Services;
 
 namespace EverMedia.Events;
 
 /// <summary>
-/// 事件监听器：基于队列的生产者-消费者模型，防止高并发触发风控。
+/// 事件监听器：基于多线程队列的生产者-消费者模型。
+/// 支持 MaxConcurrency 并发控制，兼顾效率与风控。
 /// </summary>
 public class EverMediaEventListener : IAsyncDisposable
 {
@@ -31,11 +31,13 @@ public class EverMediaEventListener : IAsyncDisposable
     private readonly ConcurrentDictionary<Guid, (int Count, DateTime LastAttempt)> _probeFailureTracker = new();
     private readonly TimeSpan _shortTermRetryDelay = TimeSpan.FromSeconds(10);
 
-    // --- [新增] 队列处理系统 ---
+    // --- 队列处理系统 ---
     private readonly Channel<BaseItem> _processingChannel;
-    private readonly ConcurrentDictionary<Guid, byte> _queuedItems = new(); // 用于队列去重
+    private readonly ConcurrentDictionary<Guid, byte> _queuedItems = new(); // 队列去重
     private readonly CancellationTokenSource _disposeCts = new();
-    private readonly Task _queueProcessorTask;
+    
+    // [修改] 变为任务列表，支持多线程
+    private readonly List<Task> _workerTasks = new(); 
 
     public EverMediaEventListener(
         ILogger logger,
@@ -46,124 +48,122 @@ public class EverMediaEventListener : IAsyncDisposable
         _everMediaService = everMediaService;
         _fileSystem = fileSystem;
 
-        // 创建无界通道 (存储引用占用内存很小，Unbounded 较为安全)
+        // 创建无界通道
         _processingChannel = Channel.CreateUnbounded<BaseItem>();
 
-        // 启动后台消费者线程
-        _queueProcessorTask = Task.Run(ProcessQueueAsync);
+        // [修改] 读取并发配置并启动对应数量的 Worker
+        var config = Plugin.Instance.Configuration;
+        int concurrency = config?.TaskConfig?.MaxConcurrency ?? 1;
+        if (concurrency < 1) concurrency = 1;
+
+        _logger.Info($"[EverMedia] Queue: Starting {concurrency} worker threads for real-time monitoring.");
+
+        for (int i = 0; i < concurrency; i++)
+        {
+            int workerId = i + 1;
+            _workerTasks.Add(Task.Run(() => ProcessQueueAsync(workerId)));
+        }
     }
 
-    // --- 消费者循环：核心限流逻辑 ---
-    private async Task ProcessQueueAsync()
+    // --- [修改] 消费者循环：增加 WorkerId ---
+    private async Task ProcessQueueAsync(int workerId)
     {
-        _logger.Info("[EverMedia] Queue: Background processor started.");
+        // _logger.Info($"[EverMedia] Worker-{workerId}: Started.");
 
         while (!_disposeCts.Token.IsCancellationRequested)
         {
             try
             {
-                // 1. 等待并读取队列中的下一个项目
+                // 1. 等待并读取队列 (多个线程竞争读取，Channel 内部线程安全)
                 var item = await _processingChannel.Reader.ReadAsync(_disposeCts.Token);
 
-                // 2. 从去重集合中移除（允许该 ID 再次入队）
+                // 2. 移除去重标记
                 _queuedItems.TryRemove(item.Id, out _);
 
-                // 3. 获取配置并执行限流
+                // 3. 获取实时配置
                 var config = Plugin.Instance.Configuration;
-                // 复用 TaskConfig 中的速率限制配置
-                // 注意：如果不想启用限流，请在设置中将其设为 0
                 int rateLimitSeconds = config?.TaskConfig?.BootstrapTaskRateLimitSeconds ?? 2;
 
+                // 4. 执行核心逻辑
+                await ProcessItemInternalAsync(item, workerId, config);
+
+                // 5. [关键] 线程级限流
+                // 每个线程独立休眠。如果并发是5，间隔是2秒，整体吞吐量约 2.5个/秒
                 if (rateLimitSeconds > 0)
                 {
-                    // _logger.Debug($"[EverMedia] Queue: Waiting {rateLimitSeconds}s before processing {item.Name}...");
                     await Task.Delay(TimeSpan.FromSeconds(rateLimitSeconds), _disposeCts.Token);
                 }
-
-                // 4. 执行核心业务逻辑
-                await ProcessItemInternalAsync(item);
             }
             catch (OperationCanceledException)
             {
-                break; // 插件关闭或卸载时正常退出
+                break; 
             }
             catch (Exception ex)
             {
-                _logger.Error($"[EverMedia] Queue: Fatal error in processor loop: {ex.Message}");
+                _logger.Error($"[EverMedia] Worker-{workerId}: Error in loop: {ex.Message}");
             }
         }
     }
 
-    // --- 统一的业务处理逻辑 (融合了原 Added 和 Updated 的判断) ---
-    private async Task ProcessItemInternalAsync(BaseItem item)
+    // --- 统一业务逻辑 (透传 workerId 用于日志) ---
+    private async Task ProcessItemInternalAsync(BaseItem item, int workerId, EverMediaConfig? config)
     {
         try
         {
-            // 二次检查：处理时确保插件仍开启
-            var config = Plugin.Instance.Configuration;
             if (config == null || !config.EnablePlugin) return;
-
-            // 二次检查：项目可能在排队期间被删除
             if (item == null) return;
 
-            _logger.Debug($"[EverMedia] Queue: Processing item '{item.Name ?? item.Path}' (ID: {item.Id})");
+            // _logger.Debug($"[EverMedia] Worker-{workerId}: Processing '{item.Name}'");
 
             string medInfoPath = _everMediaService.GetMedInfoPath(item);
             bool medInfoExists = _fileSystem.FileExists(medInfoPath);
             
-            // 获取当前流信息
             var mediaStreams = item.GetMediaStreams();
             var hasVideoOrAudio = mediaStreams?.Any(s => s.Type == MediaStreamType.Video || s.Type == MediaStreamType.Audio) == true;
 
-            // --- 场景 1: 需要恢复 (有 MedInfo，但 Emby 没数据) ---
+            // --- 场景 1: 恢复 ---
             if (!hasVideoOrAudio && medInfoExists)
             {
-                // 检查是否是字幕引起的歧义状态 (ItemUpdated 原有逻辑)
                 int savedExternalCount = _everMediaService.GetSavedExternalSubCount(item);
                 int currentExternalCount = mediaStreams?.Count(s => s.Type == MediaStreamType.Subtitle && s.IsExternal) ?? 0;
 
                 if (currentExternalCount != savedExternalCount)
                 {
-                    _logger.Info($"[EverMedia] Logic: Subtitle mismatch for {item.Name}. Deleting stale .medinfo and probing.");
+                    _logger.Info($"[EverMedia] Worker-{workerId}: Subtitle mismatch for {item.Name}. Probing.");
                     try { _fileSystem.DeleteFile(medInfoPath); } catch { }
-                    
-                    await HandleProbeWithRetryAsync(item, config);
+                    await HandleProbeWithRetryAsync(item, config, workerId);
                 }
                 else
                 {
-                    _logger.Info($"[EverMedia] Logic: Restoring metadata for {item.Name} from local file.");
+                    _logger.Info($"[EverMedia] Worker-{workerId}: Restoring {item.Name}.");
                     await _everMediaService.RestoreAsync(item);
-                    // 恢复成功，清除失败计数
                     _probeFailureTracker.TryRemove(item.Id, out _);
                 }
             }
-            // --- 场景 2: 需要备份 (Emby 有数据，但没有 MedInfo 文件) ---
+            // --- 场景 2: 备份 ---
             else if (hasVideoOrAudio && !medInfoExists)
             {
-                _logger.Info($"[EverMedia] Logic: Creating backup for {item.Name}.");
+                _logger.Info($"[EverMedia] Worker-{workerId}: Backup {item.Name}.");
                 await _everMediaService.BackupAsync(item);
                 _probeFailureTracker.TryRemove(item.Id, out _);
             }
-            // --- 场景 3: 彻底丢失 (既没数据，也没本地备份) -> 触发 FFProbe ---
+            // --- 场景 3: 探测 (FFProbe) ---
             else if (!hasVideoOrAudio && !medInfoExists)
             {
-                 await HandleProbeWithRetryAsync(item, config);
+                 await HandleProbeWithRetryAsync(item, config, workerId);
             }
-            // --- 场景 4: 健康状态 ---
             else
             {
-                // HasV/A && MedInfoExists -> 正常，无需操作
                 _probeFailureTracker.TryRemove(item.Id, out _);
             }
         }
         catch (Exception ex)
         {
-            _logger.Error($"[EverMedia] Queue: Error processing item {item.Name}: {ex.Message}");
+            _logger.Error($"[EverMedia] Worker-{workerId}: Error processing {item.Name}: {ex.Message}");
         }
     }
 
-    // --- 封装熔断与重试逻辑 ---
-    private async Task HandleProbeWithRetryAsync(BaseItem item, EverMediaConfig config)
+    private async Task HandleProbeWithRetryAsync(BaseItem item, EverMediaConfig config, int workerId)
     {
         var now = DateTime.UtcNow;
         int maxRetries = config.FailureConfig.MaxProbeRetries;
@@ -171,21 +171,18 @@ public class EverMediaEventListener : IAsyncDisposable
         
         (int currentCount, DateTime lastAttempt) = _probeFailureTracker.GetValueOrDefault(item.Id, (0, DateTime.MinValue));
 
-        // 熔断重置检查
         if (currentCount >= maxRetries && (now - lastAttempt > resetInterval))
         {
             currentCount = 0;
-            _logger.Info($"[EverMedia] Retry: Reset interval passed for {item.Name}. Resetting failure count.");
+            _logger.Info($"[EverMedia] Worker-{workerId}: Reset failure count for {item.Name}.");
         }
 
-        // 熔断检查
         if (currentCount >= maxRetries)
         {
-            _logger.Debug($"[EverMedia] Retry: Item {item.Name} hit max retries ({maxRetries}). Skipping.");
+            _logger.Debug($"[EverMedia] Worker-{workerId}: {item.Name} hit max retries. Skipping.");
             return;
         }
 
-        // 短期冷却 (防止极速重试) - 虽然有队列限流，但保留此逻辑作为双重保险
         if (now - lastAttempt < _shortTermRetryDelay)
         {
             await Task.Delay(_shortTermRetryDelay - (now - lastAttempt));
@@ -195,41 +192,36 @@ public class EverMediaEventListener : IAsyncDisposable
         currentCount++;
         _probeFailureTracker.AddOrUpdate(item.Id, (currentCount, now), (key, old) => (currentCount, now));
 
-        _logger.Info($"[EverMedia] Retry: Triggering FFProbe for {item.Name} (Attempt {currentCount}/{maxRetries}).");
+        _logger.Info($"[EverMedia] Worker-{workerId}: Triggering FFProbe for {item.Name} (Attempt {currentCount}/{maxRetries}).");
+        
+        // 调用原始的 FFProbe 方法
         await TriggerFullProbeAsync(item);
     }
 
-    // --- 辅助方法：入队 ---
     private void EnqueueItem(BaseItem item)
     {
-        // 去重：如果 Item 已经在队列中，跳过
         if (_queuedItems.TryAdd(item.Id, 0))
         {
             if (!_processingChannel.Writer.TryWrite(item))
             {
-                _logger.Warn($"[EverMedia] Queue: Failed to enqueue item {item.Name}.");
+                _logger.Warn($"[EverMedia] Queue: Failed to enqueue {item.Name}.");
                 _queuedItems.TryRemove(item.Id, out _);
             }
         }
     }
 
-    // --- ItemAdded 事件处理 ---
     public void OnItemAdded(object? sender, ItemChangeEventArgs e)
     {
-        // 快速过滤，不阻塞主线程
         if (e.Item is BaseItem item && item.Path != null && item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))
         {
-             // 仅负责入队
              EnqueueItem(item);
         }
     }
 
-    // --- ItemUpdated 事件处理 ---
     public async void OnItemUpdated(object? sender, ItemChangeEventArgs e)
     {
         if (e.Item is BaseItem item && item.Path != null && item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))
         {
-            // 保持原有的 Debounce (防抖) 逻辑
             var itemId = item.Id;
             if (_debounceTokens.TryGetValue(itemId, out var existingCts))
             {
@@ -242,18 +234,10 @@ public class EverMediaEventListener : IAsyncDisposable
 
             try
             {
-                // 等待防抖时间
                 await Task.Delay(TimeSpan.FromSeconds(1), newCts.Token);
-                
-                // 防抖结束，入队处理
-                // 注意：这里不再直接执行逻辑，而是交给队列
-                _logger.Debug($"[EverMedia] Event: ItemUpdated debounce passed for {item.Name}. Enqueuing.");
                 EnqueueItem(item);
             }
-            catch (OperationCanceledException)
-            {
-                // 被新的 Update 事件取消，正常忽略
-            }
+            catch (OperationCanceledException) { }
             finally
             {
                 _debounceTokens.TryRemove(itemId, out _);
@@ -262,7 +246,6 @@ public class EverMediaEventListener : IAsyncDisposable
         }
     }
 
-    // --- 触发 FFProbe ---
     private async Task TriggerFullProbeAsync(BaseItem item)
     {
         var directoryService = new DirectoryService(_logger, _fileSystem);
@@ -287,22 +270,23 @@ public class EverMediaEventListener : IAsyncDisposable
         }
     }
 
-    // --- 资源销毁 ---
+    // --- [修改] 资源销毁：等待所有 Worker ---
     public async ValueTask DisposeAsync()
     {
-        // 1. 发出停止信号
         _disposeCts.Cancel();
-
-        // 2. 标记通道写入完成
         _processingChannel.Writer.TryComplete();
 
-        // 3. 等待消费者任务结束
-        if (_queueProcessorTask != null)
+        if (_workerTasks.Count > 0)
         {
-            try { await _queueProcessorTask; } catch { }
+            try 
+            {
+                // 等待所有线程完成当前工作
+                await Task.WhenAll(_workerTasks);
+            } 
+            catch { }
         }
+        _workerTasks.Clear();
 
-        // 4. 清理集合
         foreach (var kvp in _debounceTokens)
         {
             try { kvp.Value.Cancel(); kvp.Value.Dispose(); } catch { }
