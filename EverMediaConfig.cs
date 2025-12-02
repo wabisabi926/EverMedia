@@ -41,8 +41,8 @@ public class EverMediaConfig : EditableOptionsBase
 
 
     // --- 二级设置分组 2: 并发控制 ---
-    [DisplayName("高级设置：计划任务")]
-    [Description("配置计划任务（Bootstrap Task）的线程数量和访问间隔")]
+    [DisplayName("高级设置：线程访问")]
+    [Description("配置多线程数量和访问间隔")]
     public ConcurrencyConfig TaskConfig { get; set; } = new ConcurrencyConfig();
     
 }
