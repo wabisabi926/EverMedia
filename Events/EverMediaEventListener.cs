@@ -58,7 +58,7 @@ public class EverMediaEventListener : IAsyncDisposable
         }
     }
 
-    // --- [修改重点 1] 消费者循环：移除这里的限流 ---
+    // --- 消费者循环 ---
     private async Task ProcessQueueAsync(int workerId)
     {
         while (!_disposeCts.Token.IsCancellationRequested)
@@ -70,7 +70,6 @@ public class EverMediaEventListener : IAsyncDisposable
 
                 var config = Plugin.Instance.Configuration;
                 
-                // 执行核心逻辑 (不再在这里 await Task.Delay)
                 await ProcessItemInternalAsync(item, workerId, config);
             }
             catch (OperationCanceledException)
@@ -128,7 +127,7 @@ public class EverMediaEventListener : IAsyncDisposable
         }
     }
 
-    // --- [修改重点 2] 将限流逻辑移到这里 ---
+    // --- 将限流逻辑移到这里 ---
     private async Task HandleProbeWithRetryAsync(BaseItem item, EverMediaConfig? config, int workerId)
     {
         // 1. 安全获取限流时间 (默认 2 秒)

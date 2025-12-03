@@ -276,7 +276,7 @@ public class EverMediaService
             var libraryOptions = _libraryManager.GetLibraryOptions(item);
             if (libraryOptions?.PathInfos != null)
             {
-                // [修订]：增加边界检查，防止 "/Movie" 误匹配 "/Movie.finished"
+                // 增加边界检查，防止 "/Movie" 误匹配 "/Movie.finished"
                 // 同时也按路径长度倒序，优先匹配更长、更精确的路径
                 var matchingPathInfo = libraryOptions.PathInfos
                     .Where(pi => !string.IsNullOrEmpty(pi.Path))
@@ -287,14 +287,12 @@ public class EverMediaService
                         if (!item.Path.StartsWith(pi.Path, StringComparison.OrdinalIgnoreCase))
                             return false;
 
-                        // 2. [关键修复] 边界检查
+                        // 2. 边界检查
                         // 如果 item路径 刚好等于 库路径 (根目录文件)，匹配成功
                         if (item.Path.Length == pi.Path.Length)
                             return true;
 
                         // 如果 item路径 比 库路径 长，必须确保接着的下一个字符是分隔符
-                        // 例如：库="/mnt/Movie"，文件="/mnt/Movie.finished" -> 下一个字符是 '.' -> 匹配失败
-                        // 例如：库="/mnt/Movie"，文件="/mnt/Movie/Film"     -> 下一个字符是 '/' -> 匹配成功
                         char nextChar = item.Path[pi.Path.Length];
                         return nextChar == Path.DirectorySeparatorChar || nextChar == Path.AltDirectorySeparatorChar;
                     });
