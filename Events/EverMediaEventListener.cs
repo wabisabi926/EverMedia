@@ -129,21 +129,23 @@ public class EverMediaEventListener : IAsyncDisposable
     }
 
     // --- [修改重点 2] 将限流逻辑移到这里 ---
-    private async Task HandleProbeWithRetryAsync(BaseItem item, EverMediaConfig config, int workerId)
+    private async Task HandleProbeWithRetryAsync(BaseItem item, EverMediaConfig? config, int workerId)
     {
-        // 1. 获取配置的限流时间
+        // 1. 安全获取限流时间 (默认 2 秒)
         int rateLimitSeconds = config?.TaskConfig?.BootstrapTaskRateLimitSeconds ?? 2;
 
-        // 2. [关键] 在发起远程请求前，执行等待
+        // 2. 在发起远程请求前，执行等待
         if (rateLimitSeconds > 0)
         {
-            // _logger.Debug($"[EverMedia] Worker-{workerId}: Rate limiting remote probe for {item.Name} ({rateLimitSeconds}s)...");
             await Task.Delay(TimeSpan.FromSeconds(rateLimitSeconds), _disposeCts.Token);
         }
 
         var now = DateTime.UtcNow;
-        int maxRetries = config.FailureConfig.MaxProbeRetries;
-        TimeSpan resetInterval = TimeSpan.FromMinutes(config.FailureConfig.ProbeFailureResetMinutes);
+
+        int maxRetries = config?.FailureConfig?.MaxProbeRetries ?? 3;
+        int resetMinutes = config?.FailureConfig?.ProbeFailureResetMinutes ?? 30;
+
+        TimeSpan resetInterval = TimeSpan.FromMinutes(resetMinutes);
         
         (int currentCount, DateTime lastAttempt) = _probeFailureTracker.GetValueOrDefault(item.Id, (0, DateTime.MinValue));
 
@@ -159,7 +161,7 @@ public class EverMediaEventListener : IAsyncDisposable
             return;
         }
 
-        // 短期重试保护 (针对同一个文件的快速连续失败)
+        // 短期重试保护
         if (now - lastAttempt < _shortTermRetryDelay)
         {
             await Task.Delay(_shortTermRetryDelay - (now - lastAttempt));
