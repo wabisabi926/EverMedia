@@ -44,11 +44,11 @@ public class EverMediaBootstrapTask : IScheduledTask
         _fileSystem = fileSystem; // 保存注入的 IFileSystem
     }
 
-    public string Name => "EverMedia Bootstrap Task";
+    public string Name => "EverMedia 引导任务";
 
     public string Key => "EverMediaBootstrapTask";
 
-    public string Description => "Scan and persist MediaInfo for .strm files.";
+    public string Description => "扫描并持久化 .strm 文件和原盘媒体文件的媒体信息。";
 
     public string Category => "EverMedia";
 
