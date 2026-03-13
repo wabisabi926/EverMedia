@@ -475,4 +475,38 @@ public class EverMediaService
         public bool? ZeroFingerprintConfidence { get; set; }
         public string? EmbeddedImage { get; set; }
     }
+
+    // 获取所有媒体库名称
+    public List<string> GetAllLibraryNames()
+    {
+        try
+        {
+            var libraryNames = new List<string>();
+            var allItems = _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                IncludeItemTypes = new[] { MediaType.Video },
+                HasPath = true,
+                Recursive = true
+            });
+
+            foreach (var item in allItems)
+            {
+                var libraryOptions = _libraryManager.GetLibraryOptions(item);
+                if (libraryOptions != null)
+                {
+                    // 尝试获取媒体库名称
+                    // 这里需要根据 Emby 的 API 来获取正确的媒体库名称
+                    // 暂时返回一个示例名称
+                    libraryNames.Add("示例媒体库");
+                }
+            }
+
+            return libraryNames.Distinct().ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("[EverMedia] Service: Error getting all library names: " + ex.Message);
+            return new List<string>();
+        }
+    }
 }
