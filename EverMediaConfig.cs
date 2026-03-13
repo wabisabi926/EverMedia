@@ -26,8 +26,8 @@ public class EverMediaConfig : EditableOptionsBase
     [EditFolderPicker]
     public string CentralizedRootPath { get; set; } = "";
 
-    [DisplayName("媒体信息JSON根目录")]
-    [Description("集中存储媒体信息JSON文件的根目录。留空则使用SideBySide模式。")]
+    [DisplayName("媒体信息 JSON 根目录")]
+    [Description("集中存储媒体信息 JSON 文件的根目录。留空则使用 SideBySide 模式。")]
     [EditFolderPicker]
     public string MediaInfoJsonRootFolder { get; set; } = "";
 
@@ -35,8 +35,8 @@ public class EverMediaConfig : EditableOptionsBase
     [Description("启用对原盘媒体文件的信息提取功能。")]
     public bool EnableDiscMediaInfoExtract { get; set; } = true;
 
-    [DisplayName("自定义FFProbe路径")]
-    [Description("用于处理ISO和BDMV文件的自定义ffprobe可执行文件路径。Linux/macOS系统需要启用了--enable-libbluray的ffprobe。")]
+    [DisplayName("自定义 FFProbe 路径")]
+    [Description("用于处理 ISO 和 BDMV 文件的自定义 ffprobe 可执行文件路径。需将 ffprobe 放入 config/bin 目录并赋予 755 可执行权限。")]
     [EditFilePicker]
     public string CustomFfprobePath { get; set; } = "";
 
@@ -45,12 +45,12 @@ public class EverMediaConfig : EditableOptionsBase
     // public bool EnableOrphanCleanup { get; set; } = false;
 
     [DisplayName("上次任务运行时间（UTC）")]
-    [Description("MediaInfo任务上次成功完成的 UTC 时间，用于增量扫描。如无必要，不要设置。")]
+    [Description("MediaInfo 任务上次成功完成的 UTC 时间，用于增量扫描。如无必要，不要设置。")]
     public DateTime? LastBootstrapTaskRun { get; set; } = null; // 初始值为 null
     
     // --- 二级设置分组 1: 熔断策略 ---
     [DisplayName("高级设置：熔断策略")]
-    [Description("配置.strm访问失败的重试次数与重置时间")]
+    [Description("配置 .strm 访问失败的重试次数与重置时间")]
     public ProbeFailureConfig FailureConfig { get; set; } = new ProbeFailureConfig();
 
 
@@ -86,7 +86,7 @@ public class ConcurrencyConfig : EditableOptionsBase
     public int MaxConcurrency { get; set; } = 2;
 
     [DisplayName("全局访问间隔（秒）")]
-    [Description("每个线程处理两个文件之间的最小冷却时间（秒）。此设置同时应用于「计划任务」和「实时监控」，用于防止触发远程端风控。例如：并发数设为 2，间隔设为 2秒，则总体请求频率约为 1次/秒。此设置对所有模式生效。")]
+    [Description("每个线程处理两个文件之间的最小冷却时间（秒）。此设置同时应用于「计划任务」和「实时监控」，用于防止触发远程端风控。例如：并发数设为 2，间隔设为 2 秒，则总体请求频率约为 1 次/秒。此设置对所有模式生效。")]
     [MinValue(0), MaxValue(60)]
     public int BootstrapTaskRateLimitSeconds { get; set; } = 2;
 }
