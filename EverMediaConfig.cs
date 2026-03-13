@@ -50,7 +50,7 @@ public class EverMediaConfig : EditableOptionsBase
 
     [DisplayName("媒体库选择")]
     [Description("选择要处理的媒体库。留空则处理所有媒体库。")]
-    public List<string> SelectedLibraryIds { get; set; } = new List<string>();
+    public List<string> SelectedLibraryNames { get; set; } = new List<string>();
     
     // --- 二级设置分组 1: 熔断策略 ---
     [DisplayName("高级设置：熔断策略")]

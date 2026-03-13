@@ -56,7 +56,7 @@ public class EverMediaBootstrapTask : IScheduledTask
     private bool IsLibrarySelected(BaseItem item)
     {
         var config = Plugin.Instance.Configuration;
-        if (config == null || !config.SelectedLibraryIds.Any())
+        if (config == null || !config.SelectedLibraryNames.Any())
         {
             // 如果没有选择媒体库，则处理所有媒体库
             return true;
@@ -64,9 +64,9 @@ public class EverMediaBootstrapTask : IScheduledTask
 
         try
         {
-            // 简单实现：如果项目有路径，则认为它属于某个媒体库
-            // 这里我们假设所有项目都属于某个媒体库，只要配置了 SelectedLibraryIds
-            // 实际使用中，用户需要确保输入正确的媒体库 ID
+            // 简单实现：假设所有项目都属于某个媒体库
+            // 实际使用中，用户需要在配置中输入媒体库的名称
+            // 例如："华语电影", "欧美电影" 等
             _logger.Debug($"[EverMedia] BootstrapTask: Processing item {item.Name} since library selection is enabled");
             return true;
         }
