@@ -48,7 +48,7 @@ public class EverMediaBootstrapTask : IScheduledTask
 
     public string Key => "EverMediaBootstrapTask";
 
-描并持久化 .strm 文件和原盘媒体文件的媒体信息。";    public string Description => "扫
+    public string Description => "扫描并持久化 .strm 文件和原盘媒体文件的媒体信息。";
 
     public string Category => "EverMedia";
 
