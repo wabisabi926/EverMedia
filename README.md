@@ -142,7 +142,7 @@ EverMedia.dll 复制到 Emby Server下的plugins
 > 支持 `.iso`、`.img`、`.m2ts`、`.ts`、`.vob` 等原盘格式。
 
 ### Q6：如何手动触发扫描？
-> 进入 **仪表盘 → 计划任务 → EverMedia Bootstrap Task → 点击“运行”**。
+> 进入 **仪表盘 → 计划任务 → EverMedia 引导任务 → 点击“运行”**。
 
 ---
 

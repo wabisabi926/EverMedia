@@ -152,7 +152,7 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 ### Q6: How do I manually trigger a scan?
 
-> Go to **Dashboard → Scheduled Tasks → EverMedia Bootstrap Task → Click "Play"**.
+> Go to **Dashboard → Scheduled Tasks → EverMedia 引导任务 → Click "Play"**.
 
 -----
 
