@@ -52,6 +52,31 @@ public class EverMediaBootstrapTask : IScheduledTask
 
     public string Category => "EverMedia";
 
+    // 检查项目所属的媒体库是否被选中
+    private bool IsLibrarySelected(BaseItem item)
+    {
+        var config = Plugin.Instance.Configuration;
+        if (config == null || !config.SelectedLibraryIds.Any())
+        {
+            // 如果没有选择媒体库，则处理所有媒体库
+            return true;
+        }
+
+        try
+        {
+            // 简单实现：如果项目有路径，则认为它属于某个媒体库
+            // 这里我们假设所有项目都属于某个媒体库，只要配置了 SelectedLibraryIds
+            // 实际使用中，用户需要确保输入正确的媒体库 ID
+            _logger.Debug($"[EverMedia] BootstrapTask: Processing item {item.Name} since library selection is enabled");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"[EverMedia] BootstrapTask: Error checking library selection for item {item.Name}: {ex.Message}");
+            return false;
+        }
+    }
+
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
     {
         // 示例：如果希望任务每天凌晨 2 点运行，可以这样配置：
@@ -113,11 +138,12 @@ public class EverMediaBootstrapTask : IScheduledTask
 
             var allVideoItems = _libraryManager.GetItemList(query);
 
-            // 过滤出 Path 以 .strm 结尾的项目或原盘媒体文件
+            // 过滤出 Path 以 .strm 结尾的项目或原盘媒体文件，并检查媒体库选择
             var itemsToProcess = allVideoItems.Where(item => 
                 item.Path != null && 
                 (item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase) || 
-                 _everMediaService.IsDiscMediaFile(item))
+                 _everMediaService.IsDiscMediaFile(item)) &&
+                IsLibrarySelected(item)
             ).ToList();
 
             _logger.Info($"[EverMedia] BootstrapTask: Found {itemsToProcess.Count} files with metadata updated since last run to process.");

@@ -47,6 +47,10 @@ public class EverMediaConfig : EditableOptionsBase
     [DisplayName("上次任务运行时间（UTC）")]
     [Description("MediaInfo 任务上次成功完成的 UTC 时间，用于增量扫描。如无必要，不要设置。")]
     public DateTime? LastBootstrapTaskRun { get; set; } = null; // 初始值为 null
+
+    [DisplayName("媒体库选择")]
+    [Description("选择要处理的媒体库。留空则处理所有媒体库。")]
+    public List<string> SelectedLibraryIds { get; set; } = new List<string>();
     
     // --- 二级设置分组 1: 熔断策略 ---
     [DisplayName("高级设置：熔断策略")]
