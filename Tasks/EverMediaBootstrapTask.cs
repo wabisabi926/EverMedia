@@ -231,14 +231,14 @@ public class EverMediaBootstrapTask : IScheduledTask
 
                         _logger.Debug($"[EverMedia] BootstrapTask: Processing .strm file: {item.Path} (DateLastSaved: {item.DateLastSaved:O})");
 
-                        // 检查是否存在 .medinfo 文件
+                        // 检查是否存在 -mediainfo.json 文件
                         string medInfoPath = _everMediaService.GetMedInfoPath(item);
 
                         if (_fileSystem.FileExists(medInfoPath))
                         {
-                            _logger.Info($"[EverMedia] BootstrapTask: Found .medinfo file for {item.Path}. Attempting restore.");
+                            _logger.Info($"[EverMedia] BootstrapTask: Found -mediainfo.json file for {item.Path}. Attempting restore.");
                             
-                            // 存在 .medinfo 文件：尝试恢复 (自愈)
+                            // 存在 -mediainfo.json 文件：尝试恢复 (自愈)
                             var restoreResult = await _everMediaService.RestoreAsync(item);
                             if (restoreResult)
                             {
@@ -252,16 +252,16 @@ public class EverMediaBootstrapTask : IScheduledTask
                         }
                         else
                         {
-                            _logger.Debug($"[EverMedia] BootstrapTask: No .medinfo file found for {item.Path}.");
+                            _logger.Debug($"[EverMedia] BootstrapTask: No -mediainfo.json file found for {item.Path}.");
                             
-                            // 不存在 .medinfo 文件：检查是否已有 MediaStreams
+                            // 不存在 -mediainfo.json 文件：检查是否已有 MediaStreams
                             // 使用 item.GetMediaStreams() 来获取最新状态，参考 MediaInfoEventListener
                             bool hasMediaInfo = item.GetMediaStreams()?.Any(i => i.Type == MediaStreamType.Video || i.Type == MediaStreamType.Audio) ?? false;
 
                             if (!hasMediaInfo)
                             {
-                                _logger.Info($"[EverMedia] BootstrapTask: No MediaInfo found for {item.Path} and no .medinfo file. Attempting probe.");
-                                // 没有 MediaStreams 且没有 .medinfo 文件：触发探测
+                                _logger.Info($"[EverMedia] BootstrapTask: No MediaInfo found for {item.Path} and no -mediainfo.json file. Attempting probe.");
+                                // 没有 MediaStreams 且没有 -mediainfo.json 文件：触发探测
                                 // 使用预先创建的 MetadataRefreshOptions 来触发探测
                                 await item.RefreshMetadata(refreshOptions, cancellationToken);
                                 
@@ -271,8 +271,8 @@ public class EverMediaBootstrapTask : IScheduledTask
                             }
                             else
                             {
-                                // 有 MediaInfo 但没有 .medinfo → 立即备份
-                                _logger.Info($"[EverMedia] BootstrapTask: MediaInfo exists for {item.Path} but no .medinfo file. Backing up now.");
+                                // 有 MediaInfo 但没有 -mediainfo.json → 立即备份
+                                _logger.Info($"[EverMedia] BootstrapTask: MediaInfo exists for {item.Path} but no -mediainfo.json file. Backing up now.");
                                 var backupResult = await _everMediaService.BackupAsync(item);
                                 if (backupResult)
                                 {
@@ -307,7 +307,7 @@ public class EverMediaBootstrapTask : IScheduledTask
             await Task.WhenAll(tasks);
 
             var totalProcessed = restoredCount + probedCount + backedUpCount + skippedCount;
-            _logger.Info($"[EverMedia] BootstrapTask: Task execution completed. Total files processed: {totalProcessed}. Restored from .medinfo: {restoredCount}, Probed for new meta {probedCount}, Backup for media info existed: {backedUpCount},  Skipped: {skippedCount}.");
+            _logger.Info($"[EverMedia] BootstrapTask: Task execution completed. Total files processed: {totalProcessed}. Restored from -mediainfo.json: {restoredCount}, Probed for new meta {probedCount}, Backup for media info existed: {backedUpCount},  Skipped: {skippedCount}.");
 
             // 在任务成功完成后，记录一个稍晚于当前时间的时间戳作为下一次运行的基准·
             // 硬编码增加 1 秒偏移量，确保下一次查询起点晚于本次任务结束时间

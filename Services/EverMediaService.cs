@@ -175,11 +175,11 @@ public class EverMediaService
         try
         {
             string medInfoPath = GetMedInfoPath(item);
-            _logger.Debug($"[EverMedia] Service: Looking for medinfo file: {medInfoPath}");
+            _logger.Debug($"[EverMedia] Service: Looking for mediainfo file: {medInfoPath}");
     
             if (!_fileSystem.FileExists(medInfoPath))
             {
-                _logger.Info($"[EverMedia] Service: No medinfo file found for item: {item.Name ?? item.Path}. Path checked: {medInfoPath}");
+                _logger.Info($"[EverMedia] Service: No mediainfo file found for item: {item.Name ?? item.Path}. Path checked: {medInfoPath}");
                 return Task.FromResult(false);
             }
     
@@ -190,14 +190,14 @@ public class EverMediaService
             }
             catch (Exception ex)
             {
-                _logger.Error($"[EverMedia] Service: Error deserializing medinfo file {medInfoPath} into BackupDto: {ex.Message}");
+                _logger.Error($"[EverMedia] Service: Error deserializing mediainfo file {medInfoPath} into BackupDto: {ex.Message}");
                 _logger.Debug(ex.StackTrace);
                 return Task.FromResult(false);
             }
     
             if (backupDto == null || backupDto.Data == null || !backupDto.Data.Any())
             {
-                _logger.Warn($"[EverMedia] Service: No data found in medinfo file {medInfoPath}.");
+                _logger.Warn($"[EverMedia] Service: No data found in mediainfo file {medInfoPath}.");
                 return Task.FromResult(false);
             }
     
@@ -209,7 +209,7 @@ public class EverMediaService
     
             if (mediaSourceInfo == null)
             {
-                _logger.Warn($"[EverMedia] Service: MediaSourceInfo in medinfo file {medInfoPath} is null.");
+                _logger.Warn($"[EverMedia] Service: MediaSourceInfo in mediainfo file {medInfoPath} is null.");
                 return Task.FromResult(false);
             }
     
@@ -353,7 +353,15 @@ public class EverMediaService
         var fileExtension = Path.GetExtension(item.Path).ToLowerInvariant();
         var discExtensions = new[] { ".iso", ".img", ".m2ts", ".ts", ".vob" };
         
-        return discExtensions.Contains(fileExtension);
+        // 检查文件扩展名
+        if (discExtensions.Contains(fileExtension))
+            return true;
+        
+        // 检查是否为BDMV文件夹
+        if (Directory.Exists(item.Path) && Path.GetFileName(item.Path).Equals("BDMV", StringComparison.OrdinalIgnoreCase))
+            return true;
+        
+        return false;
     }
 
     // --- 提取原盘媒体信息 ---
@@ -390,6 +398,14 @@ public class EverMediaService
                 EnableSubtitleDownloading = false
             };
 
+            // 对于ISO和BDMV，确保使用正确的探测方式
+            if (IsDiscMediaFile(item))
+            {
+                _logger.Debug($"[EverMedia] Service: Processing disc media file: {item.Path}");
+                // Emby的RefreshMetadata会自动处理ISO和BDMV
+                // 对于Linux/macOS，可能需要自定义ffprobe
+            }
+
             await item.RefreshMetadata(refreshOptions, CancellationToken.None);
 
             // 备份提取的媒体信息
@@ -406,13 +422,13 @@ public class EverMediaService
         }
     }
 
-    // --- 从 .medinfo 读取外挂字幕计数 ---
+    // --- 从 -mediainfo.json 读取外挂字幕计数 ---
     public int GetSavedExternalSubCount(BaseItem item)
     {
         string medInfoPath = GetMedInfoPath(item);
         if (!_fileSystem.FileExists(medInfoPath))
         {
-            _logger.Debug($"[EverMedia] Service: GetSavedExternalSubCount: No medinfo file found for {item.Name}. Returning 0.");
+            _logger.Debug($"[EverMedia] Service: GetSavedExternalSubCount: No mediainfo file found for {item.Name}. Returning 0.");
             return 0; // 没有备份文件，返回 0 (或 -1，如果你想区分)
         }
 

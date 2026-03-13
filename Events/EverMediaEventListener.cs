@@ -108,7 +108,7 @@ public class EverMediaEventListener : IAsyncDisposable
             // --- 场景 1: 恢复 (本地操作，全速执行) ---
             if (!hasVideoOrAudio && medInfoExists)
             {
-                _logger.Info($"[EverMedia] Worker-{workerId}: Metadata missing but .medinfo found for {item.Name}. Restoring directly.");
+                _logger.Info($"[EverMedia] Worker-{workerId}: Metadata missing but -mediainfo.json found for {item.Name}. Restoring directly.");
                 await _everMediaService.RestoreAsync(item);
                 _probeFailureTracker.TryRemove(item.Id, out _);
             }
