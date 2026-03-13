@@ -113,16 +113,21 @@ public class EverMediaBootstrapTask : IScheduledTask
 
             var allVideoItems = _libraryManager.GetItemList(query);
 
-            // 过滤出 Path 以 .strm 结尾的项目
-            var strmItemsToProcess = allVideoItems.Where(item => item.Path != null && item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase)).ToList();
+            // 过滤出 Path 以 .strm 结尾的项目或原盘媒体文件
+            var itemsToProcess = allVideoItems.Where(item => 
+                item.Path != null && 
+                (item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase) || 
+                 _everMediaService.IsDiscMediaFile(item))
+            ).ToList();
 
-            _logger.Info($"[EverMedia] BootstrapTask: Found {strmItemsToProcess.Count} .strm files with metadata updated since last run to process.");
+            _logger.Info($"[EverMedia] BootstrapTask: Found {itemsToProcess.Count} files with metadata updated since last run to process.");
+            _logger.Info($"[EverMedia] BootstrapTask: {itemsToProcess.Count(i => i.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))} .strm files, {itemsToProcess.Count(i => _everMediaService.IsDiscMediaFile(i))} disc media files.");
 
             // 计算总进度 (基于过滤后的列表)
-            var totalItems = strmItemsToProcess.Count;
+            var totalItems = itemsToProcess.Count;
             if (totalItems == 0)
             {
-                _logger.Info("[EverMedia] BootstrapTask: No .strm files found with updated metadata since last run. Task completed.");
+                _logger.Info("[EverMedia] BootstrapTask: No files found with updated metadata since last run. Task completed.");
                 progress?.Report(100);
                 return;
             }
@@ -172,7 +177,7 @@ public class EverMediaBootstrapTask : IScheduledTask
                 EnableSubtitleDownloading = false // 不下载字幕
             };
 
-            foreach (var item in strmItemsToProcess)
+            foreach (var item in itemsToProcess)
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
@@ -302,7 +307,7 @@ public class EverMediaBootstrapTask : IScheduledTask
             await Task.WhenAll(tasks);
 
             var totalProcessed = restoredCount + probedCount + backedUpCount + skippedCount;
-            _logger.Info($"[EverMedia] BootstrapTask: Task execution completed. Total .strm files processed: {totalProcessed}. Restored from .medinfo: {restoredCount}, Probed for new meta {probedCount}, Backup for media info existed: {backedUpCount},  Skipped: {skippedCount}.");
+            _logger.Info($"[EverMedia] BootstrapTask: Task execution completed. Total files processed: {totalProcessed}. Restored from .medinfo: {restoredCount}, Probed for new meta {probedCount}, Backup for media info existed: {backedUpCount},  Skipped: {skippedCount}.");
 
             // 在任务成功完成后，记录一个稍晚于当前时间的时间戳作为下一次运行的基准·
             // 硬编码增加 1 秒偏移量，确保下一次查询起点晚于本次任务结束时间

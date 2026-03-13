@@ -11,6 +11,8 @@
     <Nullable>enable</Nullable>
     <OutputType>Library</OutputType>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <RuntimeIdentifiers>win-x86;win-x64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <SelfContained>false</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>

@@ -26,6 +26,15 @@ public class EverMediaConfig : EditableOptionsBase
     [EditFolderPicker]
     public string CentralizedRootPath { get; set; } = "";
 
+    [DisplayName("媒体信息JSON根目录")]
+    [Description("集中存储媒体信息JSON文件的根目录。留空则使用SideBySide模式。")]
+    [EditFolderPicker]
+    public string MediaInfoJsonRootFolder { get; set; } = "";
+
+    [DisplayName("启用原盘媒体信息提取")]
+    [Description("启用对原盘媒体文件的信息提取功能。")]
+    public bool EnableDiscMediaInfoExtract { get; set; } = true;
+
     // [DisplayName("启用孤立文件清理");
     // [Description("清理不再有对应 .strm 文件的 .medinfo 文件。");
     // public bool EnableOrphanCleanup { get; set; } = false;

@@ -265,12 +265,29 @@ public class EverMediaService
         {
             _logger.Warn($"[EverMedia] Service: Item path is null or empty for ID: {item.Id}. Using fallback path.");
             string fallbackDir = item.ContainingFolderPath ?? string.Empty;
-            return Path.Combine(fallbackDir, item.Id.ToString() + ".medinfo");
+            return Path.Combine(fallbackDir, item.Id.ToString() + "-mediainfo.json");
         }
 
         var config = GetConfiguration() ?? new EverMediaConfig();
-        string fileName = Path.GetFileNameWithoutExtension(item.Path) + ".medinfo";
+        string fileName = Path.GetFileNameWithoutExtension(item.Path) + "-mediainfo.json";
 
+        // 优先使用 MediaInfoJsonRootFolder
+        if (!string.IsNullOrWhiteSpace(config.MediaInfoJsonRootFolder))
+        {
+            var relativePath = item.ContainingFolderPath;
+            if (Path.IsPathRooted(item.ContainingFolderPath))
+            {
+                relativePath = Path.GetRelativePath(Path.GetPathRoot(item.ContainingFolderPath)!, item.ContainingFolderPath);
+            }
+
+            string targetDir = string.IsNullOrEmpty(relativePath)
+                ? config.MediaInfoJsonRootFolder
+                : Path.Combine(config.MediaInfoJsonRootFolder, relativePath);
+
+            return Path.Combine(targetDir, fileName);
+        }
+
+        // 其次使用传统的 Centralized 模式
         if (config.BackupMode == BackupMode.Centralized && !string.IsNullOrWhiteSpace(config.CentralizedRootPath))
         {
             var libraryOptions = _libraryManager.GetLibraryOptions(item);
@@ -325,6 +342,68 @@ public class EverMediaService
         
         // SideBySide 模式或未找到匹配库路径时，回退到同级目录
         return Path.Combine(item.ContainingFolderPath, fileName);
+    }
+
+    // --- 检查是否为原盘媒体文件 ---
+    public bool IsDiscMediaFile(BaseItem item)
+    {
+        if (item == null || string.IsNullOrEmpty(item.Path))
+            return false;
+
+        var fileExtension = Path.GetExtension(item.Path).ToLowerInvariant();
+        var discExtensions = new[] { ".iso", ".img", ".m2ts", ".ts", ".vob" };
+        
+        return discExtensions.Contains(fileExtension);
+    }
+
+    // --- 提取原盘媒体信息 ---
+    public async Task<bool> ExtractDiscMediaInfoAsync(BaseItem item)
+    {
+        var config = GetConfiguration();
+        if (config == null || !config.EnableDiscMediaInfoExtract)
+        {
+            _logger.Info($"[EverMedia] Service: Disc media info extraction is disabled for item: {item.Name}");
+            return false;
+        }
+
+        try
+        {
+            _logger.Info($"[EverMedia] Service: Extracting disc media info for item: {item.Name}");
+
+            var libraryOptions = _libraryManager.GetLibraryOptions(item);
+            if (libraryOptions == null)
+            {
+                _logger.Error($"[EverMedia] Service: Failed to get LibraryOptions for item: {item.Name}");
+                return false;
+            }
+
+            // 触发媒体信息探测
+            var directoryService = new DirectoryService(_logger, _fileSystem);
+            var refreshOptions = new MetadataRefreshOptions(directoryService)
+            {
+                EnableRemoteContentProbe = true,
+                MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
+                ReplaceAllMetadata = false,
+                ImageRefreshMode = MetadataRefreshMode.ValidationOnly,
+                ReplaceAllImages = false,
+                EnableThumbnailImageExtraction = false,
+                EnableSubtitleDownloading = false
+            };
+
+            await item.RefreshMetadata(refreshOptions, CancellationToken.None);
+
+            // 备份提取的媒体信息
+            await BackupAsync(item);
+
+            _logger.Info($"[EverMedia] Service: Disc media info extracted successfully for item: {item.Name}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"[EverMedia] Service: Error extracting disc media info for item {item.Name}: {ex.Message}");
+            _logger.Debug(ex.StackTrace);
+            return false;
+        }
     }
 
     // --- 从 .medinfo 读取外挂字幕计数 ---

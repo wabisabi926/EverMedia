@@ -96,6 +96,15 @@ public class EverMediaEventListener : IAsyncDisposable
             var mediaStreams = item.GetMediaStreams();
             var hasVideoOrAudio = mediaStreams?.Any(s => s.Type == MediaStreamType.Video || s.Type == MediaStreamType.Audio) == true;
 
+            // --- 场景 0: 原盘媒体文件处理 ---
+            if (config.EnableDiscMediaInfoExtract && _everMediaService.IsDiscMediaFile(item))
+            {
+                _logger.Info($"[EverMedia] Worker-{workerId}: Processing disc media file {item.Name}.");
+                await _everMediaService.ExtractDiscMediaInfoAsync(item);
+                _probeFailureTracker.TryRemove(item.Id, out _);
+                return;
+            }
+
             // --- 场景 1: 恢复 (本地操作，全速执行) ---
             if (!hasVideoOrAudio && medInfoExists)
             {
@@ -190,36 +199,54 @@ public class EverMediaEventListener : IAsyncDisposable
 
     public void OnItemAdded(object? sender, ItemChangeEventArgs e)
     {
-        if (e.Item is BaseItem item && item.Path != null && item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))
+        if (e.Item is BaseItem item && item.Path != null)
         {
-             EnqueueItem(item);
+            // 处理 .strm 文件
+            if (item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))
+            {
+                EnqueueItem(item);
+            }
+            // 处理原盘媒体文件
+            else if (_everMediaService.IsDiscMediaFile(item))
+            {
+                EnqueueItem(item);
+            }
         }
     }
 
     public async void OnItemUpdated(object? sender, ItemChangeEventArgs e)
     {
-        if (e.Item is BaseItem item && item.Path != null && item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))
+        if (e.Item is BaseItem item && item.Path != null)
         {
-            var itemId = item.Id;
-            if (_debounceTokens.TryGetValue(itemId, out var existingCts))
+            // 处理 .strm 文件
+            if (item.Path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase))
             {
-                existingCts.Cancel();
-                existingCts.Dispose();
+                var itemId = item.Id;
+                if (_debounceTokens.TryGetValue(itemId, out var existingCts))
+                {
+                    existingCts.Cancel();
+                    existingCts.Dispose();
+                }
+
+                var newCts = new CancellationTokenSource();
+                _debounceTokens[itemId] = newCts;
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), newCts.Token);
+                    EnqueueItem(item);
+                }
+                catch (OperationCanceledException) { }
+                finally
+                {
+                    _debounceTokens.TryRemove(itemId, out _);
+                    newCts.Dispose();
+                }
             }
-
-            var newCts = new CancellationTokenSource();
-            _debounceTokens[itemId] = newCts;
-
-            try
+            // 处理原盘媒体文件
+            else if (_everMediaService.IsDiscMediaFile(item))
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), newCts.Token);
                 EnqueueItem(item);
-            }
-            catch (OperationCanceledException) { }
-            finally
-            {
-                _debounceTokens.TryRemove(itemId, out _);
-                newCts.Dispose();
             }
         }
     }
