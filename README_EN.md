@@ -14,10 +14,11 @@
 
 | Feature | Description |
 | :--- | :--- |
-| **Auto Backup** | Automatically saves audio/video streams, subtitles, duration, and resolution to a `.medinfo` file when a `.strm` file is scanned or updated. |
-| **Self-Healing** | Automatically restores metadata from `.medinfo` without requiring a manual refresh. |
+| **Auto Backup** | Automatically saves audio/video streams, subtitles, duration, and resolution to a `-mediainfo.json` file when a `.strm` file or disc media file is scanned or updated. |
+| **Self-Healing** | Automatically restores metadata from `-mediainfo.json` without requiring a manual refresh. |
 | **Subtitle Sync** | Automatically updates media info when subtitles are added or removed. |
-| **Centralized Storage** | Supports storing all `.medinfo` files in a single, specified directory. |
+| **Disc Media Info Extract** | Supports extracting media info from disc media formats like `.iso`, `.img`, `.m2ts`, `.ts`, `.vob`. |
+| **Centralized Storage** | Supports storing all `-mediainfo.json` files in a single, specified directory. |
 | **Custom Control** | Flexible settings to enable/disable features and manage resource consumption. |
 | **Anti-Ban Logic** | Configurable thread counts and FFProbe intervals to prevent triggering API rate limits (risk control). |
 | **Incremental Scan** | Scheduled tasks only scan `.strm` files modified since the last run for high efficiency. |
@@ -59,9 +60,11 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 | Option | Description |
 | :--- | :--- |
-| **Enable Plugin** | ✅ **Required.** Monitors `.strm` files and updates `.medinfo` automatically. |
+| **Enable Plugin** | ✅ **Required.** Monitors `.strm` files and disc media files, updates `-mediainfo.json` automatically. |
 | **Enable Task** | ✅ **Recommended.** Allows the background scheduled task to run. (Disabled by default to prevent accidental resource usage). |
-| **Backup Mode** | - `SideBySide`: `.medinfo` is stored next to the `.strm` file (Default).<br>- `Centralized`: `.medinfo` is stored in a unified directory. |
+| **Backup Mode** | - `SideBySide`: `-mediainfo.json` is stored next to the media file (Default).<br>- `Centralized`: `-mediainfo.json` is stored in a unified directory. |
+| **Media Info JSON Root Folder** | Centralized storage root directory for `-mediainfo.json` files. Leave empty for SideBySide mode. |
+| **Enable Disc Media Info Extract** | Enable media info extraction for disc media files. |
 | **Last Run Time (UTC)** | Automatically records the last task time. Modify this only if you need to force a re-scan from a specific date. |
 | **Rate Limit** | Controls the interval between tasks to prevent cloud/site bans. Adjust based on your provider. |
 | **Max Concurrency** | Adjust thread count based on server performance and provider risk controls. |
@@ -84,7 +87,7 @@ Go to: **Dashboard → Plugins → EverMedia**
 ```
 /Media/Movies/
 ├── MyMovie.strm
-├── MyMovie.medinfo     ← Auto-generated metadata
+├── MyMovie-mediainfo.json     ← Auto-generated metadata
 └── MyMovie.srt         ← Subtitle file (Auto-detected)
 ```
 
@@ -96,10 +99,10 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 /.evermedia/
 └── Movies/
-    └── MyMovie.medinfo     ← Unified storage for easier backup/migration
+    └── MyMovie-mediainfo.json     ← Unified storage for easier backup/migration
 ```
 
-> `.medinfo` files are **plain text JSON**. You can view or backup them, but **do not manually modify** the content.
+> `-mediainfo.json` files are **plain text JSON**. You can view or backup them, but **do not manually modify** the content.
 
 -----
 
@@ -107,17 +110,18 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 | Scenario | EverMedia Action |
 | :--- | :--- |
-| **Add new `.strm`** | Auto-detects → Generates `.medinfo` → Instant playback next time. |
+| **Add new `.strm`** | Auto-detects → Generates `-mediainfo.json` → Instant playback next time. |
+| **Add new disc media file** | Auto-detects → Generates `-mediainfo.json` → Instant playback next time. |
 | **Add Chinese Subtitle** | Detects "subtitle only" change → Deletes old info → Re-probes → Saves new file with subtitle data. |
-| **Emby DB Crash** | After restart, the scheduled task scans `.strm` files → Restores all metadata from `.medinfo` instantly. |
-| **Network Source Down** | `.medinfo` retains history; titles, duration, and resolution display correctly even if the source is offline. |
-| **Delete `.medinfo`** | The file will be automatically re-probed and rebuilt upon the next playback or scan. |
+| **Emby DB Crash** | After restart, the scheduled task scans `.strm` files and disc media files → Restores all metadata from `-mediainfo.json` instantly. |
+| **Network Source Down** | `-mediainfo.json` retains history; titles, duration, and resolution display correctly even if the source is offline. |
+| **Delete `-mediainfo.json`** | The file will be automatically re-probed and rebuilt upon the next playback or scan. |
 
 -----
 
 ## ❓ FAQ
 
-### Q1: Can I delete `.medinfo` files?
+### Q1: Can I delete `-mediainfo.json` files?
 
 > Yes. The plugin will automatically rebuild them during the next playback or scan. However, **manual modification** of the file content is not recommended.
 
@@ -125,7 +129,7 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 > **Minimal overhead.**
 >
->   * **Event Listeners:** Only trigger when `.strm` files change.
+>   * **Event Listeners:** Only trigger when `.strm` files or disc media files change.
 >   * **Scheduled Task:** Runs daily (default) or manually.
 >   * **FFProbe:** Only runs on first add or subtitle changes; subsequent reads come directly from the text file.
 
@@ -137,12 +141,16 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 > Please check:
 >
->   * Does the `.medinfo` file exist?
->   * Is the `.strm` path correct?
+>   * Does the `-mediainfo.json` file exist?
+>   * Is the `.strm` or disc media file path correct?
 >   * Are "Enable Plugin" and "Enable Task" turned on?
 >   * Is the network source actually accessible?
 
-### Q5: How do I manually trigger a scan?
+### Q5: What disc media formats are supported?
+
+> Supports `.iso`, `.img`, `.m2ts`, `.ts`, `.vob` and other disc media formats.
+
+### Q6: How do I manually trigger a scan?
 
 > Go to **Dashboard → Scheduled Tasks → EverMedia Bootstrap Task → Click "Play"**.
 
@@ -150,7 +158,7 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 ## 📜 Developer Info
 
-  * **Repo**: [https://github.com/Swiftfrog/EverMedia](https://github.com/Swiftfrog/EverMedia)
+  * **Repo**: [https://github.com/wabisabi926/EverMedia](https://github.com/wabisabi926/EverMedia)
   * **Contribution**: Issues and Pull Requests are welcome.
   * **License**: [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) Any distribution based on this code (including commercial use) must open source the full code under the same license.
   * **Dependencies**: Emby Server 4.9.1.90, .NET 8
@@ -161,7 +169,7 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 If you have questions, suggestions, or want to support the project:
 
-  * Submit an [Issue](https://github.com/Swiftfrog/EverMedia/issues) on GitHub.
+  * Submit an [Issue](https://github.com/wabisabi926/EverMedia/issues) on GitHub.
   * Give the project a ⭐️ star\!
 
 > EverMedia — Making your media library smarter, more stable, and more persistent.
