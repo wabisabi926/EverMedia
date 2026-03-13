@@ -35,6 +35,11 @@ public class EverMediaConfig : EditableOptionsBase
     [Description("启用对原盘媒体文件的信息提取功能。")]
     public bool EnableDiscMediaInfoExtract { get; set; } = true;
 
+    [DisplayName("自定义FFProbe路径")]
+    [Description("用于处理ISO和BDMV文件的自定义ffprobe可执行文件路径。Linux/macOS系统需要启用了--enable-libbluray的ffprobe。")]
+    [EditFilePicker]
+    public string CustomFfprobePath { get; set; } = "";
+
     // [DisplayName("启用孤立文件清理");
     // [Description("清理不再有对应 .strm 文件的 -mediainfo.json 文件。");
     // public bool EnableOrphanCleanup { get; set; } = false;

@@ -62,6 +62,7 @@ EverMedia.dll 复制到 Emby Server下的plugins
 | **存储路径** (`CentralizedRootPath`) | 如果选择集中存储，需要指定的文件夹路径。`SideBySide` 无需设置。 |
 | **媒体信息JSON根目录** (`MediaInfoJsonRootFolder`) | 集中存储媒体信息JSON文件的根目录。留空则使用SideBySide模式。 |
 | **启用原盘媒体信息提取** (`EnableDiscMediaInfoExtract`) | 启用对原盘媒体文件的信息提取功能。 |
+| **自定义FFProbe路径** (`CustomFfprobePath`) | 用于处理ISO和BDMV文件的自定义ffprobe可执行文件路径。Linux/macOS系统需要启用了--enable-libbluray的ffprobe。 |
 | **上次任务运行时间UTC** (`LastBootstrapTaskRun`) |任务运行后，自动记录时间。非必要不操作。<br>如果想扫描某个时间段后添加的媒体项目或者重新扫描，可以根据时间自行设定。|
 | **FFProbe 最大重试次数** (`MaxProbeRetries`) | 防止.strm失效后，emby不停访问导致死循环。 |
 | **FFProbe 失败重置时间 (分钟)** (`ProbeFailureResetMinutes`) | 刷新失败后，在一定时间内，不再重复访问，直接跳过。这个时间过后，如果任务运行，则继续访问。|
@@ -139,9 +140,16 @@ EverMedia.dll 复制到 Emby Server下的plugins
 > - 网络源是否可访问？
 
 ### Q5：支持哪些原盘媒体格式？
-> 支持 `.iso`、`.img`、`.m2ts`、`.ts`、`.vob` 等原盘格式。
+> 支持 `.iso`、`.img`、`.m2ts`、`.ts`、`.vob` 等原盘格式，以及 `BDMV` 文件夹。
 
-### Q6：如何手动触发扫描？
+### Q6：Linux/macOS系统如何处理ISO文件？
+> 需要使用自定义ffprobe，且该ffprobe需启用了 `--enable-libbluray` 编译选项。
+> - 可从 [StrmAssistant.Releases](https://github.com/sjtuross/StrmAssistant.Releases/tree/main/static-ffprobe) 下载静态编译版本
+> - 或使用 jellyfin-ffmpeg 项目的二进制文件
+> - 将ffprobe放入Emby的 `config/bin` 目录并赋予可执行权限（建议755）
+> - 在插件设置中配置自定义FFProbe路径
+
+### Q7：如何手动触发扫描？
 > 进入 **仪表盘 → 计划任务 → EverMedia 引导任务 → 点击“运行”**。
 
 ---

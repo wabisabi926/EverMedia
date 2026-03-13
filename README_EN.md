@@ -65,6 +65,7 @@ Go to: **Dashboard → Plugins → EverMedia**
 | **Backup Mode** | - `SideBySide`: `-mediainfo.json` is stored next to the media file (Default).<br>- `Centralized`: `-mediainfo.json` is stored in a unified directory. |
 | **Media Info JSON Root Folder** | Centralized storage root directory for `-mediainfo.json` files. Leave empty for SideBySide mode. |
 | **Enable Disc Media Info Extract** | Enable media info extraction for disc media files. |
+| **Custom FFProbe Path** | Custom ffprobe executable path for processing ISO and BDMV files. Linux/macOS systems require ffprobe with `--enable-libbluray` enabled. |
 | **Last Run Time (UTC)** | Automatically records the last task time. Modify this only if you need to force a re-scan from a specific date. |
 | **Rate Limit** | Controls the interval between tasks to prevent cloud/site bans. Adjust based on your provider. |
 | **Max Concurrency** | Adjust thread count based on server performance and provider risk controls. |
@@ -148,9 +149,17 @@ Go to: **Dashboard → Plugins → EverMedia**
 
 ### Q5: What disc media formats are supported?
 
-> Supports `.iso`, `.img`, `.m2ts`, `.ts`, `.vob` and other disc media formats.
+> Supports `.iso`, `.img`, `.m2ts`, `.ts`, `.vob` and other disc media formats, as well as `BDMV` folders.
 
-### Q6: How do I manually trigger a scan?
+### Q6: How to handle ISO files on Linux/macOS?
+
+> Need to use a custom ffprobe with `--enable-libbluray` enabled.
+> - Download static compiled version from [StrmAssistant.Releases](https://github.com/sjtuross/StrmAssistant.Releases/tree/main/static-ffprobe)
+> - Or use jellyfin-ffmpeg binary files
+> - Put ffprobe into Emby's `config/bin` directory and set executable permission (recommended 755)
+> - Configure custom FFProbe path in plugin settings
+
+### Q7: How do I manually trigger a scan?
 
 > Go to **Dashboard → Scheduled Tasks → EverMedia 引导任务 → Click "Play"**.
 

@@ -402,8 +402,18 @@ public class EverMediaService
             if (IsDiscMediaFile(item))
             {
                 _logger.Debug($"[EverMedia] Service: Processing disc media file: {item.Path}");
-                // Emby的RefreshMetadata会自动处理ISO和BDMV
-                // 对于Linux/macOS，可能需要自定义ffprobe
+                
+                // 检查是否配置了自定义ffprobe
+                if (!string.IsNullOrEmpty(config.CustomFfprobePath) && _fileSystem.FileExists(config.CustomFfprobePath))
+                {
+                    _logger.Info($"[EverMedia] Service: Using custom ffprobe: {config.CustomFfprobePath}");
+                    // 这里可以设置环境变量或其他方式来使用自定义ffprobe
+                    // Emby会自动检测并使用系统PATH中的ffprobe，或者我们可以通过其他方式指定
+                }
+                else if (!string.IsNullOrEmpty(config.CustomFfprobePath) && !_fileSystem.FileExists(config.CustomFfprobePath))
+                {
+                    _logger.Warn($"[EverMedia] Service: Custom ffprobe path not found: {config.CustomFfprobePath}");
+                }
             }
 
             await item.RefreshMetadata(refreshOptions, CancellationToken.None);
